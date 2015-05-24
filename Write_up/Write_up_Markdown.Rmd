@@ -1,0 +1,85 @@
+---
+title: "Practical Machine Learning Write Up"
+author: "Juuso Viljanen"
+date: "Sunday, May 24, 2015"
+output: html_document
+---
+
+#Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+#Goal
+The goal of your project is to predict the manner in which they did the exercise. This is the "classe" variable in the training set. You may use any of the other variables to predict with. You should create a report describing how you built your model, how you used cross validation, what you think the expected out of sample error is, and why you made the choices you did. You will also use your prediction model to predict 20 different test cases. 
+
+#Data cleaning and preparations 
+
+1.Load package, set working directory and read data
+```{r}
+library(caret)
+setwd("~/Coursera/Practical Machine Learning/Viikko 3/Write Up")
+pmlTreeni<-read.csv("pml-training.csv", header=T, na.strings=c("NA", "#DIV/0!"))
+pmlTesti<-read.csv("pml-testing.csv", header=T, na.string=c("NA", "#DIV/0!"))
+```
+
+2.Remove columns with NA:s
+```{r}
+TreeniNA<-apply(pmlTreeni, 2, function(x) { sum(is.na(x)) })
+Treenivalidi <- pmlTreeni[, which(TreeniNA == 0)]
+
+TreeniNA<-apply(pmlTesti, 2, function(x) { sum(is.na(x)) })
+Testivalidi <- pmlTesti[, which(TreeniNA == 0)]
+```
+
+3.Take just the sensor values data
+```{r}
+Treenivalitut<-Treenivalidi[,c(8:60)]
+Testivalitut<-Testivalidi[,c(8:60)]
+```
+
+4.Data partitioning
+The cleaned data set were subsetted to get the test set. Partitioning was performed to obtain a 60% training set and a 40% test set.
+```{r}
+Treenissä<-createDataPartition(y=Treenivalitut$classe, p=0.60, list=F)
+treeni<-Treenivalitut[Treenissä,] 
+testi<-Treenivalitut[-Treenissä,]
+``` 
+
+#Results
+Random forest trees were built for the training dataset using cross-validation.
+
+1. Random Forest trees
+```{r, echo=FALSE}
+fitTreeni<-trainControl(method="cv", number=5, allowParallel=T, verbose=T)
+modFit<-train(classe~., data=treeni, method="rf", trControl=fitTreeni, verbose=F)
+print(modFit)
+```
+
+2. Confusion Matrix and Statistics
+```{r}
+ennuste<-predict(modFit, newdata=testi)
+confusionMatrix(ennuste, testi$classe)
+```
+
+3. Prediction output
+```{r}
+ennuste20<-predict(modFit, newdata=Testivalitut)
+ennuste20
+```
+
+
+#Conclusions
+By using 52 predictors for five classes using cross-validation at a 5-fold an accuracy of 99.2% with a 95% CI [0.99-0.994] was achieved. Kappa value was 0.9902.
+
+Once the predictions were gained, below script was used to obtain sigle text files for course web site to complete the submission assignment.
+
+```{r}
+pml_write_files = function(x){
+  n = length(x)
+  for(i in 1:n){
+    filename = paste0("problem_id_",i,".txt")
+    write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+  }
+}
+pml_write_files(ennuste20)
+```
